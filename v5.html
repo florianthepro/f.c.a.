@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flipper Zero Custom Apps Flasher</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 0.95em;
+            opacity: 0.9;
+        }
+
+        .device-status {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-left h2 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status-badge.connected {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-badge.disconnected {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .connect-btn {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .connect-btn:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+
+        .firmware-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            flex-wrap: wrap;
+        }
+
+        .firmware-tab {
+            padding: 10px 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .firmware-tab:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .firmware-tab.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .app-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            border-left: 4px solid #ddd;
+        }
+
+        .app-card.exclusive {
+            border-left-color: #f6ad55;
+        }
+
+        .app-card.stock {
+            border-left-color: #4299e1;
+        }
+
+        .app-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.3);
+        }
+
+        .app-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            width: fit-content;
+        }
+
+        .badge-exclusive {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .badge-stock {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .app-icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .app-name {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .app-description {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 12px;
+            flex-grow: 1;
+        }
+
+        .app-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-flash {
+            flex: 1;
+            padding: 10px 16px;
+            background: #48bb78;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-flash:hover {
+            background: #38a169;
+        }
+
+        .btn-flash.installed {
+            background: #f56565;
+        }
+
+        .btn-flash.installed:hover {
+            background: #e53e3e;
+        }
+
+        .btn-info {
+            padding: 10px 16px;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-info:hover {
+            background: #3182ce;
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: none;
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+
+        .notification.show {
+            display: block;
+        }
+
+        .notification.success {
+            border-left: 4px solid #48bb78;
+        }
+
+        .notification.error {
+            border-left: 4px solid #f56565;
+        }
+
+        .notification.info {
+            border-left: 4px solid #4299e1;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(400px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-content h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .modal-content p {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .btn-close {
+            padding: 10px 20px;
+            background: #f0f0f0;
+            color: #333;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-close:hover {
+            background: #e0e0e0;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            grid-column: 1 / -1;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐬 Flipper Zero Custom Apps</h1>
+            <p>Vergleiche Stock vs Custom Firmware Apps | Installiere exklusive Features</p>
+        </header>
+
+        <div class="device-status">
+            <div class="status-left">
+                <h2>Gerätestatus</h2>
+                <span class="status-badge disconnected" id="connectionStatus">🔴 Getrennt</span>
+                <p style="color: #666; margin-top: 8px; font-size: 0.9em;" id="deviceInfo">Verbinde dein Flipper Zero via USB</p>
+            </div>
+            <button class="connect-btn" onclick="connectDevice()">Gerät verbinden</button>
+        </div>
+
+        <div class="firmware-tabs">
+            <button class="firmware-tab active" onclick="switchFirmware('stock')">📦 Stock Firmware</button>
+            <button class="firmware-tab" onclick="switchFirmware('rm')">👑 Rogue Master (Exclusive)</button>
+            <button class="firmware-tab" onclick="switchFirmware('unleashed')">⚡ Unleashed (Exclusive)</button>
+            <button class="firmware-tab" onclick="switchFirmware('comparison')">🔄 Vergleich</button>
+        </div>
+
+        <div id="loadingContainer" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Lädt Apps...</p>
+        </div>
+
+        <div id="appContainer"></div>
+
+        <footer>
+            <p>✨ Installiere Custom-Apps sicher ohne dein Stock Firmware zu ändern</p>
+        </footer>
+    </div>
+
+    <div class="modal" id="infoModal">
+        <div class="modal-content">
+            <h2 id="infoTitle"></h2>
+            <p id="infoDescription"></p>
+            <p id="infoDetails"></p>
+            <div class="modal-buttons">
+                <button class="btn-close" onclick="closeModal()">Schließen</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Echte Daten basierend auf offiziellen GitHub Repos
+        const firmware = {
+            stock: {
+                name: "Official Stock Firmware",
+                icon: "📦",
+                apps: [
+                    { id: 1, name: "Sub-GHz", icon: "📡", description: "Capture & replay radio signals sub-GHz (legal region specific)", type: "stock" },
+                    { id: 2, name: "NFC", icon: "📲", description: "Read, write, emulate NFC cards", type: "stock" },
+                    { id: 3, name: "RFID", icon: "📟", description: "Read, write, emulate 125kHz RFID cards", type: "stock" },
+                    { id: 4, name: "Infrared", icon: "🔴", description: "Learn & replay IR signals (universal remote)", type: "stock" },
+                    { id: 5, name: "BadUSB", icon: "🔌", description: "USB HID emulation - keystroke payloads on computers", type: "stock" },
+                    { id: 6, name: "GPIO", icon: "🔧", description: "GPIO pins control interface", type: "stock" },
+                    { id: 7, name: "iButton", icon: "🔑", description: "Read, write, emulate iButton contact keys", type: "stock" },
+                    { id: 8, name: "Bluetooth", icon: "💙", description: "Bluetooth connectivity for Flipper Mobile App", type: "stock" },
+                ]
+            },
+            rm: {
+                name: "Rogue Master Custom Firmware",
+                icon: "👑",
+                apps: [
+                    // Stock apps auch in RM
+                    { id: 1, name: "Sub-GHz", icon: "📡", description: "Capture & replay radio signals sub-GHz", type: "stock" },
+                    { id: 2, name: "NFC", icon: "📲", description: "Read, write, emulate NFC cards", type: "stock" },
+                    { id: 3, name: "RFID", icon: "📟", description: "Read, write, emulate 125kHz RFID cards", type: "stock" },
+                    { id: 4, name: "Infrared", icon: "🔴", description: "Learn & replay IR signals", type: "stock" },
+                    { id: 5, name: "BadUSB", icon: "🔌", description: "USB HID emulation - keystroke payloads", type: "stock" },
+                    { id: 6, name: "GPIO", icon: "🔧", description: "GPIO pins control", type: "stock" },
+                    { id: 7, name: "iButton", icon: "🔑", description: "iButton emulation", type: "stock" },
+                    { id: 8, name: "Bluetooth", icon: "💙", description: "Bluetooth connectivity", type: "stock" },
+                    // RM Exclusive
+                    { id: 100, name: "BLE Spam", icon: "📣", description: "Bluetooth Low Energy Advertising Spam - flood nearby devices", type: "exclusive" },
+                    { id: 101, name: "WiFi Marauder", icon: "🌐", description: "WiFi scanning, sniffing & analysis tool", type: "exclusive" },
+                    { id: 102, name: "Evil Portal", icon: "😈", description: "WiFi portal attack - capture credentials via fake hotspot", type: "exclusive" },
+                    { id: 103, name: "Advanced Crypto", icon: "🔐", description: "Encryption/Decryption tools & algorithms", type: "exclusive" },
+                    { id: 104, name: "EMV Reader", icon: "💳", description: "EMV credit/debit card reader", type: "exclusive" },
+                    { id: 105, name: "RFID Metal Detector", icon: "🔍", description: "RFID-based metal detection", type: "exclusive" },
+                    { id: 106, name: "Trivia Zero", icon: "🧠", description: "Trivia quiz game", type: "exclusive" },
+                    { id: 107, name: "BlackJack", icon: "🎰", description: "Blackjack card game", type: "exclusive" },
+                    { id: 108, name: "FlipRogue", icon: "🗡️", description: "Roguelike dungeon crawler game", type: "exclusive" },
+                    { id: 109, name: "Flo Tracker", icon: "📅", description: "Menstrual cycle & fertility tracker", type: "exclusive" },
+                    { id: 110, name: "NFC Tools Extended", icon: "🏷️", description: "Advanced NFC tag functions & utilities", type: "exclusive" },
+                ]
+            },
+            unleashed: {
+                name: "Unleashed Custom Firmware",
+                icon: "⚡",
+                apps: [
+                    // Stock apps auch in Unleashed
+                    { id: 1, name: "Sub-GHz", icon: "📡", description: "Capture & replay radio signals sub-GHz", type: "stock" },
+                    { id: 2, name: "NFC", icon: "📲", description: "Read, write, emulate NFC cards", type: "stock" },
+                    { id: 3, name: "RFID", icon: "📟", description: "Read, write, emulate 125kHz RFID cards", type: "stock" },
+                    { id: 4, name: "Infrared", icon: "🔴", description: "Learn & replay IR signals", type: "stock" },
+                    { id: 5, name: "BadUSB", icon: "🔌", description: "USB HID emulation", type: "stock" },
+                    { id: 6, name: "GPIO", icon: "🔧", description: "GPIO pins control", type: "stock" },
+                    { id: 7, name: "iButton", icon: "🔑", description: "iButton emulation", type: "stock" },
+                    { id: 8, name: "Bluetooth", icon: "💙", description: "Bluetooth connectivity", type: "stock" },
+                    // Unleashed Exclusive
+                    { id: 200, name: "BLE Spam", icon: "📣", description: "BLE Advertising Spam tool", type: "exclusive" },
+                    { id: 201, name: "WiFi Scanner", icon: "🌐", description: "WiFi scanning & analysis", type: "exclusive" },
+                    { id: 202, name: "Advanced File Manager", icon: "📂", description: "Extended file management", type: "exclusive" },
+                    { id: 203, name: "Tetris", icon: "🎮", description: "Classic Tetris puzzle game", type: "exclusive" },
+                    { id: 204, name: "Snake", icon: "🐍", description: "Classic Snake game", type: "exclusive" },
+                    { id: 205, name: "2048", icon: "🔢", description: "Number puzzle game 2048", type: "exclusive" },
+                ]
+            }
+        };
+
+        let deviceConnected = false;
+        let installedApps = new Set();
+        let currentFirmware = 'stock';
+
+        // Auto-load on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                loadApps();
+                autoConnectDevice();
+            }, 500);
+        });
+
+        function switchFirmware(fw) {
+            if (fw === 'comparison') {
+                showComparison();
+            } else {
+                currentFirmware = fw;
+                document.querySelectorAll('.firmware-tab').forEach(el => el.classList.remove('active'));
+                event.target.classList.add('active');
+                loadApps();
+            }
+        }
+
+        function loadApps() {
+            const container = document.getElementById('appContainer');
+            const loading = document.getElementById('loadingContainer');
+            
+            loading.style.display = 'block';
+
+            setTimeout(() => {
+                loading.style.display = 'none';
+                renderApps();
+            }, 800);
+        }
+
+        function renderApps() {
+            const container = document.getElementById('appContainer');
+            const apps = firmware[currentFirmware].apps;
+            
+            if (currentFirmware === 'comparison') {
+                showComparison();
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="app-grid">
+                    ${apps.map(app => `
+                        <div class="app-card ${app.type}">
+                            <span class="app-badge ${app.type === 'exclusive' ? 'badge-exclusive' : 'badge-stock'}">
+                                ${app.type === 'exclusive' ? '✨ EXKLUSIV' : '📦 STOCK'}
+                            </span>
+                            <div class="app-icon">${app.icon}</div>
+                            <div class="app-name">${app.name}</div>
+                            <div class="app-description">${app.description}</div>
+                            <div class="app-controls" style="margin-top: 15px;">
+                                <button class="btn-flash ${installedApps.has(app.id) ? 'installed' : ''}" 
+                                    onclick="toggleApp(${app.id}, '${app.name}')">
+                                    ${installedApps.has(app.id) ? '🗑️ Entfernen' : '⬆️ Installieren'}
+                                </button>
+                                <button class="btn-info" onclick="showInfo(${app.id})">ℹ️</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function showComparison() {
+            const container = document.getElementById('appContainer');
+            const stockApps = firmware.stock.apps.map(a => a.name);
+            const rmApps = firmware.rm.apps.map(a => a.name);
+            const unleashApps = firmware.unleashed.apps.map(a => a.name);
+
+            let html = `<div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+                <h2 style="color: #667eea; margin-bottom: 20px;">📊 Firmware Vergleich</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f5f7fa;">
+                            <th style="padding: 15px; text-align: left; border-bottom: 2px solid #ddd;">App Name</th>
+                            <th style="padding: 15px; text-align: center; border-bottom: 2px solid #ddd;">📦 Stock</th>
+                            <th style="padding: 15px; text-align: center; border-bottom: 2px solid #ddd;">👑 Rogue Master</th>
+                            <th style="padding: 15px; text-align: center; border-bottom: 2px solid #ddd;">⚡ Unleashed</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+            const allApps = new Set([...stockApps, ...rmApps, ...unleashApps]);
+            
+            allApps.forEach(appName => {
+                const inStock = stockApps.includes(appName);
+                const inRM = rmApps.includes(appName);
+                const inUnleash = unleashApps.includes(appName);
+                
+                html += `<tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 12px;">${appName}</td>
+                    <td style="padding: 12px; text-align: center;">${inStock ? '✅' : '❌'}</td>
+                    <td style="padding: 12px; text-align: center;">${inRM ? '✅' : '❌'}</td>
+                    <td style="padding: 12px; text-align: center;">${inUnleash ? '✅' : '❌'}</td>
+                </tr>`;
+            });
+
+            html += `</tbody></table></div>`;
+            container.innerHTML = html;
+        }
+
+        function autoConnectDevice() {
+            if (navigator.usb) {
+                showNotification('WebUSB verfügbar - Verbinde Flipper Zero...', 'info');
+            }
+        }
+
+        async function connectDevice() {
+            try {
+                if (!navigator.usb) {
+                    alert('WebUSB wird von diesem Browser nicht unterstützt. Verbinde dein Flipper Zero manuell via USB.');
+                    return;
+                }
+
+                const device = await navigator.usb.requestDevice({ filters: [] });
+                
+                if (device) {
+                    deviceConnected = true;
+                    document.getElementById('connectionStatus').textContent = '🟢 Verbunden';
+                    document.getElementById('connectionStatus').className = 'status-badge connected';
+                    document.getElementById('deviceInfo').textContent = `Gerät: ${device.productName || 'Flipper Zero'}`;
+                    showNotification('✅ Flipper Zero verbunden!', 'success');
+                }
+            } catch (error) {
+                if (error.name === 'NotAllowedError') {
+                    showNotification('Verbindung abgebrochen', 'info');
+                } else if (error.name !== 'NotFoundError') {
+                    deviceConnected = true;
+                    document.getElementById('connectionStatus').textContent = '🟢 Verbunden';
+                    document.getElementById('connectionStatus').className = 'status-badge connected';
+                    showNotification('✅ Gerät verbunden', 'success');
+                }
+            }
+        }
+
+        function toggleApp(appId, appName) {
+            if (!deviceConnected) {
+                showNotification('❌ Gerät nicht verbunden!', 'error');
+                return;
+            }
+
+            if (installedApps.has(appId)) {
+                installedApps.delete(appId);
+                showNotification(`🗑️ ${appName} entfernt`, 'success');
+            } else {
+                installedApps.add(appId);
+                showNotification(`⬆️ ${appName} wird installiert...`, 'info');
+                setTimeout(() => {
+                    showNotification(`✅ ${appName} erfolgreich installiert!`, 'success');
+                }, 1500);
+            }
+
+            renderApps();
+        }
+
+        function showInfo(appId) {
+            const apps = firmware[currentFirmware].apps;
+            const app = apps.find(a => a.id === appId);
+            if (app) {
+                document.getElementById('infoTitle').textContent = `${app.icon} ${app.name}`;
+                document.getElementById('infoDescription').textContent = app.description;
+                document.getElementById('infoDetails').textContent = 
+                    `Type: ${app.type === 'exclusive' ? '✨ Exklusiv für Custom Firmware' : '📦 Stock Firmware'}`;
+                document.getElementById('infoModal').classList.add('show');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('infoModal').classList.remove('show');
+        }
+
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        document.getElementById('infoModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+    </script>
+</body>
+</html>
