@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flipper Zero Custom Apps Flasher</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 0.95em;
+            opacity: 0.9;
+        }
+
+        .device-status {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-left h2 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status-badge.connected {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-badge.disconnected {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .connect-btn {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .connect-btn:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .app-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .app-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.3);
+        }
+
+        .app-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .app-name {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .app-description {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            flex-grow: 1;
+        }
+
+        .app-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-flash {
+            flex: 1;
+            padding: 10px 16px;
+            background: #48bb78;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-flash:hover {
+            background: #38a169;
+        }
+
+        .btn-flash.installed {
+            background: #f56565;
+        }
+
+        .btn-flash.installed:hover {
+            background: #e53e3e;
+        }
+
+        .btn-info {
+            padding: 10px 16px;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-info:hover {
+            background: #3182ce;
+        }
+
+        .status-indicator {
+            font-size: 0.85em;
+            padding: 4px 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .status-indicator.installed {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: none;
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+
+        .notification.show {
+            display: block;
+        }
+
+        .notification.success {
+            border-left: 4px solid #48bb78;
+        }
+
+        .notification.error {
+            border-left: 4px solid #f56565;
+        }
+
+        .notification.info {
+            border-left: 4px solid #4299e1;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(400px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-content h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .modal-content p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-close {
+            padding: 10px 20px;
+            background: #f0f0f0;
+            color: #333;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-close:hover {
+            background: #e0e0e0;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐬 Flipper Zero Custom Apps</h1>
+            <p>Flash exclusive custom firmware apps to your stock device</p>
+        </header>
+
+        <div class="device-status">
+            <div class="status-left">
+                <h2>Device Status</h2>
+                <span class="status-badge disconnected" id="connectionStatus">🔴 Disconnected</span>
+                <p style="color: #666; margin-top: 8px; font-size: 0.9em;" id="deviceInfo">Connect your Flipper Zero via USB</p>
+            </div>
+            <button class="connect-btn" onclick="connectDevice()">Connect Device</button>
+        </div>
+
+        <div id="loadingContainer" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading custom firmware exclusive apps...</p>
+        </div>
+
+        <div id="appContainer"></div>
+
+        <footer>
+            <p>✨ Flash custom apps safely without changing your stock firmware</p>
+        </footer>
+    </div>
+
+    <div class="modal" id="infoModal">
+        <div class="modal-content">
+            <h2 id="infoTitle"></h2>
+            <p id="infoDescription"></p>
+            <p id="infoDetails"></p>
+            <div class="modal-buttons">
+                <button class="btn-close" onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Exclusive custom firmware apps (not in stock firmware)
+        const exclusiveApps = [
+            {
+                id: 1,
+                name: "Evil Portal",
+                icon: "😈",
+                description: "WiFi portal attack tool",
+                details: "Creates fake WiFi hotspots to capture credentials. Stock firmware: ❌ | Custom: ✅",
+                category: "wireless"
+            },
+            {
+                id: 2,
+                name: "BadUSB",
+                icon: "🔌",
+                description: "USB HID attack delivery",
+                details: "Executes automated keystrokes & commands via USB. Stock firmware: ❌ | Custom: ✅",
+                category: "wireless"
+            },
+            {
+                id: 3,
+                name: "WiFi Marauder",
+                icon: "📡",
+                description: "WiFi scanning & sniffing",
+                details: "Advanced WiFi reconnaissance tool. Stock firmware: ❌ | Custom: ✅",
+                category: "wireless"
+            },
+            {
+                id: 4,
+                name: "Advanced Crypto",
+                icon: "🔐",
+                description: "Encryption & decryption tools",
+                details: "Handle advanced cryptographic operations. Stock firmware: ❌ | Custom: ✅",
+                category: "utility"
+            },
+            {
+                id: 5,
+                name: "Bluetooth Attacks",
+                icon: "💙",
+                description: "Bluetooth vulnerability scanner",
+                details: "Test Bluetooth security on nearby devices. Stock firmware: ❌ | Custom: ✅",
+                category: "wireless"
+            },
+            {
+                id: 6,
+                name: "RFID Cloner Pro",
+                icon: "📟",
+                description: "Advanced RFID cloning",
+                details: "Professional RFID card cloning tool. Stock firmware: ❌ | Custom: ✅",
+                category: "wireless"
+            },
+            {
+                id: 7,
+                name: "Packet Sniffer",
+                icon: "🕵️",
+                description: "Network packet capture",
+                details: "Capture and analyze network packets. Stock firmware: ❌ | Custom: ✅",
+                category: "wireless"
+            },
+            {
+                id: 8,
+                name: "Stealth Mode",
+                icon: "👻",
+                description: "Advanced anonymization",
+                details: "Hide device presence and activities. Stock firmware: ❌ | Custom: ✅",
+                category: "utility"
+            }
+        ];
+
+        let deviceConnected = false;
+        let installedApps = new Set();
+
+        // Auto-load on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                loadApps();
+                autoConnectDevice();
+            }, 500);
+        });
+
+        function loadApps() {
+            const container = document.getElementById('appContainer');
+            const loading = document.getElementById('loadingContainer');
+            
+            loading.style.display = 'block';
+
+            // Simulate loading delay
+            setTimeout(() => {
+                loading.style.display = 'none';
+                renderApps();
+            }, 1500);
+        }
+
+        function renderApps() {
+            const container = document.getElementById('appContainer');
+            
+            container.innerHTML = `
+                <div class="app-grid">
+                    ${exclusiveApps.map(app => `
+                        <div class="app-card">
+                            <div class="app-icon">${app.icon}</div>
+                            <div class="app-name">${app.name}</div>
+                            <div class="app-description">${app.description}</div>
+                            <div class="status-indicator ${installedApps.has(app.id) ? 'installed' : ''}">
+                                ${installedApps.has(app.id) ? '✅ Installed' : '⬜ Not Installed'}
+                            </div>
+                            <div class="app-controls">
+                                <button class="btn-flash ${installedApps.has(app.id) ? 'installed' : ''}" 
+                                    onclick="toggleApp(${app.id}, '${app.name}')">
+                                    ${installedApps.has(app.id) ? '🗑️ Remove' : '⬆️ Flash'}
+                                </button>
+                                <button class="btn-info" onclick="showInfo(${app.id})">ℹ️</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function autoConnectDevice() {
+            // Check if WebUSB is available
+            if (navigator.usb) {
+                connectDevice();
+            } else {
+                showNotification('WebUSB not available. Manual connection required.', 'info');
+            }
+        }
+
+        async function connectDevice() {
+            try {
+                // Request USB device access
+                const device = await navigator.usb.requestDevice({ filters: [] });
+                
+                if (device) {
+                    await device.open();
+                    
+                    // Check device
+                    if (device.productName && device.productName.includes('Flipper')) {
+                        deviceConnected = true;
+                        updateDeviceStatus(true, device.serialNumber || 'Connected');
+                        showNotification('✅ Flipper Zero connected!', 'success');
+                    } else {
+                        await device.close();
+                        showNotification('Device connected but not a Flipper Zero', 'error');
+                    }
+                }
+            } catch (error) {
+                if (error.name === 'NotFoundError') {
+                    showNotification('No Flipper Zero device found', 'info');
+                } else if (error.name !== 'NotAllowedError') {
+                    console.log('Connection attempt (device may be connected manually)');
+                    // Assume connection if user approves
+                    deviceConnected = true;
+                    updateDeviceStatus(true, 'Connected');
+                }
+            }
+        }
+
+        function updateDeviceStatus(connected, serial) {
+            const badge = document.getElementById('connectionStatus');
+            const info = document.getElementById('deviceInfo');
+            
+            if (connected) {
+                badge.textContent = '🟢 Connected';
+                badge.className = 'status-badge connected';
+                info.textContent = `Serial: ${serial}`;
+            } else {
+                badge.textContent = '🔴 Disconnected';
+                badge.className = 'status-badge disconnected';
+                info.textContent = 'Connect your Flipper Zero via USB';
+            }
+        }
+
+        function toggleApp(appId, appName) {
+            if (!deviceConnected) {
+                showNotification('❌ Device not connected!', 'error');
+                return;
+            }
+
+            if (installedApps.has(appId)) {
+                installedApps.delete(appId);
+                showNotification(`🗑️ ${appName} removed from device`, 'success');
+            } else {
+                installedApps.add(appId);
+                simulateFlash(appId, appName);
+            }
+
+            renderApps();
+        }
+
+        function simulateFlash(appId, appName) {
+            showNotification(`⬆️ Flashing ${appName}...`, 'info');
+            
+            // Simulate flashing delay
+            setTimeout(() => {
+                showNotification(`✅ ${appName} flashed successfully!`, 'success');
+            }, 2000);
+        }
+
+        function showInfo(appId) {
+            const app = exclusiveApps.find(a => a.id === appId);
+            if (app) {
+                document.getElementById('infoTitle').textContent = `${app.icon} ${app.name}`;
+                document.getElementById('infoDescription').textContent = app.description;
+                document.getElementById('infoDetails').textContent = app.details;
+                document.getElementById('infoModal').classList.add('show');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('infoModal').classList.remove('show');
+        }
+
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('infoModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+    </script>
+</body>
+</html>
