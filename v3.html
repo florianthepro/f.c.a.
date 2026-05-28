@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Flipper Custom Apps — Instant</title>
+<style>
+  :root{--bg:#071021;--card:#071827;--muted:#9aa4b2;--accent:#6ee7b7;--danger:#ff6b6b}
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#04101a,#071827);color:#e6eef6}
+  .wrap{max-width:1100px;margin:20px auto;padding:18px;border-radius:12px}
+  header{display:flex;align-items:center;gap:12px}
+  h1{margin:0;font-size:18px}
+  .muted{color:var(--muted);font-size:13px}
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:14px;margin-top:14px}
+  .card{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+  textarea,input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit}
+  button{background:var(--accent);border:0;padding:8px 10px;border-radius:8px;color:#042018;font-weight:700;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+  .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:10px}
+  .app{padding:10px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border:1px solid rgba(255,255,255,0.02)}
+  .meta{font-size:12px;color:var(--muted);margin-top:6px}
+  .controls{display:flex;gap:8px;margin-top:8px}
+  .log{height:160px;overflow:auto;background:#041018;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);font-family:monospace;font-size:12px;color:#bfeee0}
+  .progress{height:8px;background:rgba(255,255,255,0.03);border-radius:6px;overflow:hidden;margin-top:8px}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,#2dd4bf,#06b6d4);width:0%}
+  .warn{background:rgba(255,107,107,0.06);padding:8px;border-radius:8px;color:var(--danger);font-size:13px}
+  footer{margin-top:12px;color:var(--muted);font-size:13px}
+  .small{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Flipper Custom Apps — Instant</h1>
+      <div class="muted">Opens, indexes configured GitHub repos, shows only custom apps, and lets you transfer selected assets to your Flipper (SD or device).</div>
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div class="small">No backend · explicit consent required</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <label class="small">Repositories to index (owner/repo) — page auto-indexes on load</label>
+        <textarea id="repos" rows="6" placeholder="one per line">evilportal/flipper-apps
+youruser/flipper-custom</textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="indexBtn">Index Now</button>
+          <button id="clearBtn" class="ghost">Clear</button>
+        </div>
+
+        <hr style="margin:10px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)">
+
+        <label class="small">Stock metadata URL (optional) — used only to filter out stock apps</label>
+        <input id="stockUrl" placeholder="https://raw.githubusercontent.com/.../stock-apps.json">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="fetchStock" class="ghost">Fetch Stock List</button>
+          <div class="small" style="align-self:center">Stock apps will be hidden</div>
+        </div>
+
+        <hr style="margin:10px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)">
+
+        <label class="small">Connect / SD</label>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="openSd" class="ghost">Select SD root</button>
+          <button id="connectSerial" class="ghost">Connect Serial</button>
+          <button id="connectUsb" class="ghost">Connect USB</button>
+        </div>
+        <div id="sdStatus" class="small" style="margin-top:8px">No SD selected</div>
+      </div>
+
+      <div class="card" style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Indexed repos</strong><div class="small" id="repoCount">0</div></div>
+          <div><button id="autoIndexToggle" class="ghost">Auto-index: ON</button></div>
+        </div>
+        <div id="repoList" style="margin-top:8px;max-height:160px;overflow:auto"></div>
+      </div>
+
+      <div class="card" style="margin-top:10px">
+        <label class="small">Safety</label>
+        <div class="warn">This tool will never modify Flipper firmware. It only copies user-approved app files to SD or transfers files to a connected device. You must explicitly confirm every write/transfer. Verify signatures and checksums before installing.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Custom apps (filtered)</strong><div class="small">Auto-populated from repos above</div></div>
+          <div><input id="filter" placeholder="search" style="padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)"></div>
+        </div>
+
+        <div class="apps" id="appsGrid"></div>
+      </div>
+
+      <div class="card" style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong>Selected app</strong>
+          <div class="small" id="selectedName">none</div>
+        </div>
+
+        <div id="selected" style="margin-top:8px">
+          <div class="small">Select an app to download assets, verify, and install.</div>
+        </div>
+
+        <div style="margin-top:8px" id="installer" hidden>
+          <div style="display:flex;gap:8px">
+            <input id="pubkey" placeholder="Paste PEM public key (optional)" style="flex:1">
+            <input id="sig" placeholder="Signature (base64) optional" style="flex:1">
+          </div>
+          <div class="controls">
+            <button id="downloadAssets">Download assets</button>
+            <button id="verifyBtn" class="ghost">Verify</button>
+            <button id="installSd" class="ghost">Install to SD</button>
+            <button id="installSerial" class="ghost">Transfer to device</button>
+          </div>
+          <div class="progress"><i id="progressBar"></i></div>
+          <div style="margin-top:8px">
+            <label class="small">Log</label>
+            <div class="log" id="log"></div>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <div class="small">Open the page and allow network access. The page will index repos and show only custom apps. Every install/transfer requires your explicit confirmation. This scaffold is intentionally minimal and runs entirely in your browser.</div>
+      </footer>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Compact single-file manager:
+   - Auto-indexes repos on load (configurable textarea)
+   - Filters out stock apps if stock list provided
+   - Downloads only requested assets, verifies SHA-256 and optional signature (PEM)
+   - Installs to SD via File System Access or transfers via WebSerial/WebUSB with explicit consent
+   - Never flashes firmware; user must confirm every write
+*/
+
+const $ = id => document.getElementById(id);
+let state = { apps: [], indexed: {}, stockSet: new Set(), sdHandle: null, serial: null, usb: null, autoIndex:true };
+const log = (m,err)=>{ const el=$('log'); el.innerText = (new Date().toISOString().slice(11,23)) + ' ' + m + '\n' + el.innerText; if(err) console.error(m); else console.log(m); };
+const setProgress = p => $('progressBar').style.width = (p||0)+'%';
+
+function cssId(s){ return btoa(s).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_'); }
+function sanitize(s){ return String(s||'').replace(/[<>]/g,''); }
+function bufferToHex(buf){ const a=new Uint8Array(buf); return Array.from(a).map(x=>x.toString(16).padStart(2,'0')).join(''); }
+function base64ToArrayBuffer(b64){ const bin=atob(b64.replace(/\s+/g,'')); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); return arr.buffer; }
+async function importPem(pem){ const clean = pem.replace(/-----(BEGIN|END)[\w\s]+-----/g,'').replace(/\s+/g,''); const der = base64ToArrayBuffer(clean); try{ const key = await crypto.subtle.importKey('spki', der, {name:'RSASSA-PKCS1-v1_5', hash:'SHA-256'}, false, ['verify']); return {key, alg:'RSASSA-PKCS1-v1_5'} }catch(e){} try{ const key = await crypto.subtle.importKey('spki', der, {name:'ECDSA', namedCurve:'P-256'}, false, ['verify']); return {key, alg:'ECDSA'} }catch(e){ throw new Error('Unsupported key'); } }
+
+/* Indexing: simple heuristic — fetch repo tree and look for manifest-like JSON files */
+async function indexRepos(list){
+  state.apps=[]; state.indexed={}; $('repoList').innerHTML=''; $('appsGrid').innerHTML=''; $('selected').innerHTML='<div class="small">Select an app to download assets, verify, and install.</div>'; $('selectedName').innerText='none';
+  for(const repo of list){
+    const rtrim = repo.trim(); if(!rtrim) continue;
+    const node = document.createElement('div'); node.className='small'; node.innerText = rtrim + ' — indexing…'; $('repoList').appendChild(node);
+    try{
+      const api = `https://api.github.com/repos/${rtrim}/git/trees/HEAD?recursive=1`;
+      const res = await fetch(api);
+      if(!res.ok){ node.innerText = rtrim + ' — failed'; log('GitHub API error '+res.status, true); continue; }
+      const tree = await res.json();
+      const files = (tree.tree||[]).map(t=>t.path);
+      const candidates = files.filter(p=>/(^|\/)(app|manifest|fap|metadata)\.(json|yml|yaml)$/i.test(p) || /(^|\/)flipper.*\.json$/i.test(p));
+      const apps = [];
+      for(const path of candidates){
+        try{
+          const raw = `https://raw.githubusercontent.com/${rtrim}/HEAD/${path}`;
+          const r = await fetch(raw);
+          if(!r.ok) continue;
+          const txt = await r.text();
+          let meta=null;
+          try{ meta = JSON.parse(txt); }catch(e){ continue; }
+          const name = meta.name || meta.title || path.split('/').pop().replace(/\.[^.]+$/,'');
+          const id = `${rtrim}:${name}`;
+          const version = meta.version || '0.0.0';
+          let assets = meta.assets || meta.files || (meta.binary?[meta.binary]:[]);
+          if(!assets.length){
+            const base = path.replace(/\/[^\/]+$/,'');
+            const near = files.filter(p=>p.startsWith(base) && /\.(fap|bin|zip|zip|dfu)$/i.test(p));
+            assets = near.slice(0,6);
+          }
+          apps.push({id,name,version,repo:rtrim,manifestPath:path,assets,meta,rawManifest:raw});
+        }catch(e){ log('manifest parse error '+e, true); }
+      }
+      state.indexed[rtrim] = apps;
+      state.apps.push(...apps);
+      node.innerText = rtrim + ' — ' + apps.length + ' apps';
+    }catch(e){ node.innerText = rtrim + ' — error'; log('Index error '+e, true); }
+  }
+  applyStockFilter();
+  renderApps();
+  $('repoCount').innerText = Object.keys(state.indexed).length + ' repos';
+}
+
+/* Stock filter */
+async function fetchStock(url){
+  if(!url) return alert('Provide stock metadata URL');
+  try{
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('fetch failed');
+    const txt = await r.text();
+    let list=[];
+    try{ const j=JSON.parse(txt); if(Array.isArray(j)) list=j; else if(j.apps) list=j.apps; }catch(e){ list = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
+    state.stockSet = new Set(list.map(x=>typeof x==='string'?x:(x.name||x.id||'')));
+    log('Loaded stock list: '+state.stockSet.size);
+    applyStockFilter();
+    renderApps();
+  }catch(e){ log('Stock fetch failed: '+e, true); }
+}
+function applyStockFilter(){ if(state.stockSet.size) state.apps = state.apps.filter(a=>!state.stockSet.has(a.name) && !state.stockSet.has(a.id)); }
+
+/* Render */
+function renderApps(){
+  const grid = $('appsGrid'); grid.innerHTML=''; const q = $('filter').value.trim().toLowerCase();
+  const apps = state.apps.filter(a=>!q || (a.name||'').toLowerCase().includes(q) || (a.repo||'').toLowerCase().includes(q));
+  for(const app of apps){
+    const el = document.createElement('div'); el.className='app';
+    el.innerHTML = `<div style="display:flex;justify-content:space-between">
+      <div><strong>${sanitize(app.name)}</strong><div class="meta">${sanitize(app.repo)} · v${sanitize(app.version)}</div></div>
+      <div style="text-align:right"><div class="small" id="s-${cssId(app.id)}">—</div><div style="margin-top:8px"><button data-id="${app.id}" class="selectBtn ghost">Select</button></div></div>
+    </div>`;
+    grid.appendChild(el);
+  }
+  document.querySelectorAll('.selectBtn').forEach(b=>b.onclick = e=>selectApp(e.currentTarget.dataset.id));
+  $('indexedCount') && ($('indexedCount').innerText = apps.length + ' apps');
+}
+
+/* Select app */
+function selectApp(id){
+  const app = state.apps.find(a=>a.id===id); if(!app) return;
+  $('selectedName').innerText = app.name;
+  $('selected').innerHTML = `<div><strong>${sanitize(app.name)}</strong> <div class="meta">${sanitize(app.repo)} · ${sanitize(app.version)}</div></div>
+    <div class="meta" style="margin-top:8px">Assets: ${app.assets.length} (inferred)</div>`;
+  $('installer').hidden = false;
+  $('downloadAssets').onclick = ()=>downloadAssets(app);
+  $('verifyBtn').onclick = ()=>verifyAssets(app);
+  $('installSd').onclick = ()=>installToSd(app);
+  $('installSerial').onclick = ()=>transferToDevice(app);
+  $('log').innerText = '';
+  setProgress(0);
+}
+
+/* Download only requested assets */
+async function downloadAssets(app){
+  if(!confirm(`Download ${app.assets.length} assets for "${app.name}"?`)) return;
+  app._downloaded = [];
+  for(let i=0;i<app.assets.length;i++){
+    const p = app.assets[i];
+    const url = p.startsWith('http') ? p : `https://raw.githubusercontent.com/${app.repo}/HEAD/${p}`;
+    try{
+      log('Fetching '+url);
+      const r = await fetch(url);
+      if(!r.ok){ log('Failed '+r.status, true); continue; }
+      const blob = await r.blob();
+      app._downloaded.push({path:p,blob,url});
+      setProgress(Math.round(((i+1)/app.assets.length)*100));
+    }catch(e){ log('Download error '+e, true); }
+  }
+  log(`Downloaded ${app._downloaded.length}/${app.assets.length}`);
+  setProgress(100);
+}
+
+/* Verify: compute SHA-256 and optionally verify signature */
+async function verifyAssets(app){
+  if(!app._downloaded || !app._downloaded.length) return alert('Download assets first');
+  for(const it of app._downloaded){
+    const buf = await it.blob.arrayBuffer();
+    const h = await crypto.subtle.digest('SHA-256', buf);
+    it.sha256 = bufferToHex(h);
+    log(`${it.path} SHA256 ${it.sha256}`);
+  }
+  const pub = $('pubkey').value.trim(); const sig = $('sig').value.trim();
+  if(pub && sig){
+    try{
+      const imported = await importPem(pub);
+      const payload = app._downloaded.map(i=>i.sha256+'  '+i.path).join('\n');
+      const enc = new TextEncoder().encode(payload);
+      const ok = await crypto.subtle.verify(imported.alg==='ECDSA'?{name:'ECDSA',hash:'SHA-256'}:{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}, imported.key, base64ToArrayBuffer(sig), enc);
+      log('Signature verification: ' + (ok? 'OK':'FAILED'));
+    }catch(e){ log('Signature verify error '+e, true); }
+  } else log('No signature/pubkey provided; only checksums computed');
+}
+
+/* Install to SD (File System Access) */
+async function installToSd(app){
+  if(!app._downloaded || !app._downloaded.length) return alert('Download assets first');
+  if(!state.sdHandle) return alert('Select SD root first');
+  if(!confirm(`Write ${app._downloaded.length} files to selected SD root?`)) return;
+  try{
+    const root = state.sdHandle;
+    const appsDir = await root.getDirectoryHandle('apps',{create:true});
+    const custom = await appsDir.getDirectoryHandle('custom',{create:true});
+    const appDir = await custom.getDirectoryHandle(sanitize(app.name),{create:true});
+    for(let i=0;i<app._downloaded.length;i++){
+      const it = app._downloaded[i];
+      const name = it.path.split('/').pop();
+      const fh = await appDir.getFileHandle(name,{create:true});
+      const w = await fh.createWritable();
+      await w.write(it.blob);
+      await w.close();
+      log('Wrote '+name);
+      setProgress(Math.round(((i+1)/app._downloaded.length)*100));
+    }
+    log('Install to SD complete');
+    alert('Install complete. Eject SD safely before inserting into Flipper.');
+  }catch(e){ log('SD write error '+e, true); }
+  setProgress(0);
+}
+
+/* Transfer to device (generic WebSerial) */
+async function transferToDevice(app){
+  if(!app._downloaded || !app._downloaded.length) return alert('Download assets first');
+  if(!confirm('Open serial port and transfer files? Ensure device is ready to receive files.')) return;
+  if(!('serial' in navigator)) return alert('WebSerial not supported');
+  try{
+    const port = await navigator.serial.requestPort();
+    await port.open({baudRate:115200});
+    log('Serial opened');
+    const writer = port.writable.getWriter();
+    for(let i=0;i<app._downloaded.length;i++){
+      const it = app._downloaded[i];
+      log('Sending '+it.path);
+      // send a simple header then raw bytes (device must understand this protocol)
+      await writer.write(new TextEncoder().encode(`BEGIN ${it.path} ${it.blob.size}\n`));
+      const buf = new Uint8Array(await it.blob.arrayBuffer());
+      const chunk = 4096;
+      for(let off=0; off<buf.length; off+=chunk){
+        await writer.write(buf.slice(off, off+chunk));
+      }
+      await writer.write(new TextEncoder().encode(`END ${it.path}\n`));
+      setProgress(Math.round(((i+1)/app._downloaded.length)*100));
+    }
+    writer.releaseLock();
+    await port.close();
+    log('Transfer complete; serial closed');
+  }catch(e){ log('Serial transfer error '+e, true); }
+  setProgress(0);
+}
+
+/* SD selection */
+$('openSd').onclick = async ()=>{
+  if(!('showDirectoryPicker' in window)) return alert('File System Access not supported');
+  try{ state.sdHandle = await window.showDirectoryPicker(); $('sdStatus').innerText = 'Selected: '+state.sdHandle.name; log('SD selected: '+state.sdHandle.name); }catch(e){ log('SD selection canceled'); }
+};
+
+/* Connect helpers (USB generic) */
+$('connectUsb').onclick = async ()=>{
+  if(!('usb' in navigator)) return alert('WebUSB not supported');
+  try{
+    const dev = await navigator.usb.requestDevice({filters:[]});
+    await dev.open();
+    state.usb = dev;
+    log('USB opened: '+(dev.productName||'device'));
+    alert('USB device opened. This UI will not claim interfaces or write without your explicit action.');
+  }catch(e){ log('USB connect canceled', true); }
+};
+
+/* UI wiring */
+$('indexBtn').onclick = ()=>{ const list = $('repos').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); indexRepos(list); };
+$('clearBtn').onclick = ()=>{ $('repos').value=''; state.apps=[]; state.indexed={}; renderApps(); $('repoList').innerHTML=''; };
+$('fetchStock').onclick = ()=>fetchStock($('stockUrl').value.trim());
+$('filter').oninput = renderApps;
+$('autoIndexToggle').onclick = ()=>{ state.autoIndex = !state.autoIndex; $('autoIndexToggle').innerText = 'Auto-index: ' + (state.autoIndex? 'ON':'OFF'); };
+
+/* Auto-index on load if repos present */
+window.addEventListener('load', ()=>{ const txt = $('repos').value.trim(); if(txt){ const list = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); indexRepos(list); } log('Ready — page auto-indexed.'); });
+
+</script>
+</body>
+</html>
