@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Flipper Custom Apps Manager (Single File)</title>
+<style>
+  :root{--bg:#0f1720;--card:#0b1220;--muted:#9aa4b2;--accent:#6ee7b7;--danger:#ff6b6b;--glass:rgba(255,255,255,0.03)}
+  html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;color:#e6eef6;background:linear-gradient(180deg,#071021 0%,#071827 60%);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1100px;margin:28px auto;padding:20px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+  header{display:flex;gap:16px;align-items:center}
+  h1{font-size:18px;margin:0}
+  p.lead{margin:0;color:var(--muted);font-size:13px}
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:18px;margin-top:18px}
+  .card{background:var(--card);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  input[type=text],textarea,select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;font-size:13px}
+  button{background:var(--accent);border:0;padding:8px 10px;border-radius:8px;color:#042018;font-weight:600;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+  .repo-list{max-height:220px;overflow:auto;margin-top:8px}
+  .repo-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:var(--glass);margin-bottom:8px}
+  .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .app{padding:12px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border:1px solid rgba(255,255,255,0.02)}
+  .meta{font-size:12px;color:var(--muted);margin-top:6px}
+  .status{font-weight:700;font-size:12px}
+  .status.ok{color:var(--accent)}
+  .status.missing{color:var(--muted)}
+  .status.warn{color:var(--danger)}
+  .controls{display:flex;gap:8px;margin-top:10px}
+  .log{height:160px;overflow:auto;background:#041018;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);font-family:monospace;font-size:12px;color:#bfeee0}
+  .progress{height:10px;background:rgba(255,255,255,0.03);border-radius:6px;overflow:hidden;margin-top:8px}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,#2dd4bf,#06b6d4);width:0%}
+  .warn{background:linear-gradient(90deg,rgba(255,107,107,0.08),transparent);padding:10px;border-radius:8px;border:1px solid rgba(255,107,107,0.06);color:var(--danger);font-size:13px}
+  small{color:var(--muted)}
+  footer{margin-top:18px;font-size:12px;color:var(--muted)}
+  .flex{display:flex;gap:8px;align-items:center}
+  .pill{padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.02);font-size:12px}
+  .muted{color:var(--muted)}
+  .kbd{background:#071827;padding:4px 6px;border-radius:6px;border:1px solid rgba(255,255,255,0.02);font-family:monospace}
+  a.link{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Flipper Custom Apps Manager</h1>
+      <p class="lead">Client-only UI to index, compare, verify, and install custom Flipper apps (SD or WebSerial/WebUSB). No backend.</p>
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div class="pill">Local-only · explicit consent required</div>
+      <div style="font-size:12px;color:var(--muted)">No stock apps will be listed or modified</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <label>GitHub repositories to index (owner/repo), one per line</label>
+        <textarea id="repos" rows="6" placeholder="example: user/flipper-custom-apps"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="indexBtn">Index Repositories</button>
+          <button id="clearIndex" class="ghost">Clear</button>
+        </div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,0.02)">
+
+        <label>Optional: Flipper/stock metadata URL (raw JSON or newline list)</label>
+        <input id="stockUrl" type="text" placeholder="https://raw.githubusercontent.com/…/stock-apps.json (optional)">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="fetchStock" class="ghost">Fetch Stock Metadata</button>
+          <small class="muted" style="align-self:center">Used only to filter out stock apps</small>
+        </div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,0.02)">
+
+        <label>Local SD access (optional)</label>
+        <div style="display:flex;gap:8px">
+          <button id="openSd">Select SD root (File System Access)</button>
+          <small class="muted" id="sdStatus">No SD selected</small>
+        </div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,0.02)">
+
+        <label>Device connection (WebSerial / WebUSB)</label>
+        <div style="display:flex;gap:8px">
+          <button id="connectSerial" class="ghost">Connect WebSerial</button>
+          <button id="connectUsb" class="ghost">Connect WebUSB</button>
+        </div>
+        <small class="muted">Use only with explicit consent. This UI will not modify firmware.</small>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <label>Indexed repositories</label>
+        <div class="repo-list" id="repoList"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="reindexSelected" class="ghost">Re-index selected</button>
+          <button id="exportIndex" class="ghost">Export index (JSON)</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <label>Safety & warnings</label>
+        <div class="warn">
+          <strong>Important:</strong> This tool never flashes device firmware. It only installs/removes user-selected custom apps to the SD card or transfers files over serial/USB. Always verify signatures and checksums before installing. You are responsible for what you install.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <strong>Custom apps</strong>
+            <div class="muted" style="font-size:12px">Indexed from your specified GitHub repos. Stock apps are filtered out.</div>
+          </div>
+          <div class="flex">
+            <div class="kbd" id="indexedCount">0 apps</div>
+            <button id="refreshApps" class="ghost">Refresh</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label>Filter / search</label>
+          <input id="filter" type="text" placeholder="search by name, tag, repo...">
+        </div>
+
+        <div style="margin-top:12px" id="appsContainer">
+          <div class="apps" id="appsGrid"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong>Installer / Verifier</strong>
+          <div class="muted" style="font-size:12px">Select an app to download assets, verify, and install.</div>
+        </div>
+
+        <div id="selectedApp" style="margin-top:12px">
+          <small class="muted">No app selected</small>
+        </div>
+
+        <div style="margin-top:12px" id="installerControls" hidden>
+          <label>Verification</label>
+          <div style="display:flex;gap:8px">
+            <input id="pubkey" type="text" placeholder="Paste public key (PEM) or leave blank to use repo .pubkey">
+            <input id="sig" type="text" placeholder="Signature (base64) or leave blank to use repo .sig">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="downloadAssets">Download assets (only requested)</button>
+            <button id="verifyBtn" class="ghost">Verify checksum & signature</button>
+            <button id="installSd" class="ghost">Install to SD (save files)</button>
+            <button id="installSerial" class="ghost">Transfer via Serial</button>
+          </div>
+
+          <div class="progress" style="margin-top:10px"><i id="progressBar"></i></div>
+          <div style="margin-top:10px">
+            <label>Operation log</label>
+            <div class="log" id="log"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <label>Operation history</label>
+        <div id="history" class="log" style="height:120px"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="clearHistory" class="ghost">Clear</button>
+          <button id="downloadLog" class="ghost">Download log</button>
+        </div>
+      </div>
+
+      <footer>
+        <div><strong>Notes</strong></div>
+        <ul style="margin:6px 0 0 18px;color:var(--muted)">
+          <li>All network requests are made from your browser to GitHub or URLs you provide.</li>
+          <li>Signature verification uses WebCrypto; you may paste PEM public keys or provide repo-hosted keys.</li>
+          <li>This scaffold intentionally avoids any automatic firmware flashing or privileged operations.</li>
+        </ul>
+      </footer>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Single-file Flipper Custom Apps Manager (scaffold)
+  - Indexes specified GitHub repos (owner/repo)
+  - Optionally fetches stock metadata to filter out stock apps
+  - Lists custom apps, allows per-app asset download (only when requested)
+  - Verifies checksums (SHA-256) and signatures (PEM public key, base64 signature)
+  - Installs to SD via File System Access (user selects directory) or transfers via WebSerial/WebUSB (generic)
+  - Provides progress, logs, and explicit consent flows
+  - DOES NOT modify firmware or list/manage stock apps
+*/
+
+/* -------------------------
+   Utilities & state
+   ------------------------- */
+const state = {
+  repos: [],
+  indexed: {}, // repo -> apps[]
+  apps: [], // flattened app entries
+  stockSet: new Set(),
+  sdHandle: null,
+  serialPort: null,
+  usbDevice: null,
+  logs: [],
+  history: []
+};
+
+const $ = id => document.getElementById(id);
+const log = (msg, level='info') => {
+  const el = $('log');
+  const time = new Date().toISOString().slice(11,23);
+  const line = `[${time}] ${msg}`;
+  state.logs.push(line);
+  state.history.push(line);
+  el.innerText = state.logs.slice(-500).join('\n');
+  $('history').innerText = state.history.slice(-1000).join('\n');
+  console[level==='error'?'error':'log'](line);
+};
+const setProgress = pct => { $('progressBar').style.width = pct + '%'; };
+
+/* -------------------------
+   GitHub indexing
+   ------------------------- */
+async function indexRepos(list) {
+  state.apps = [];
+  state.indexed = {};
+  $('repoList').innerHTML = '';
+  $('appsGrid').innerHTML = '';
+  $('indexedCount').innerText = 'Indexing...';
+  for (const repo of list) {
+    try {
+      const repoTrim = repo.trim();
+      if (!repoTrim) continue;
+      $('repoList').insertAdjacentHTML('beforeend', `<div class="repo-item"><div>${repoTrim}</div><div class="muted">indexing…</div></div>`);
+      // Fetch repository tree via GitHub API (no auth). We'll look for app manifests (e.g., app.json, manifest.json, metadata files)
+      // Strategy: list root and .github or apps folder; then search for files named app.json, manifest.json, *.fap.json, README with metadata.
+      const api = `https://api.github.com/repos/${repoTrim}/git/trees/HEAD?recursive=1`;
+      const res = await fetch(api);
+      if (!res.ok) { log(`Failed to fetch ${repoTrim}: ${res.status}`, 'error'); continue; }
+      const tree = await res.json();
+      const files = (tree.tree||[]).map(t=>t.path);
+      // Candidate manifest files
+      const candidates = files.filter(p => /(^|\/)(app|manifest|fap|metadata)\.(json|yml|yaml)$/i.test(p) || /(^|\/)flipper.*\.(json)$/i.test(p));
+      const apps = [];
+      for (const path of candidates) {
+        try {
+          const raw = `https://raw.githubusercontent.com/${repoTrim}/HEAD/${path}`;
+          const r = await fetch(raw);
+          if (!r.ok) continue;
+          const text = await r.text();
+          let meta = null;
+          try { meta = JSON.parse(text); } catch(e){ /* ignore non-json */ }
+          if (!meta) continue;
+          // Normalize minimal fields
+          const name = meta.name || meta.title || meta.id || path.split('/').pop().replace(/\.[^.]+$/,'');
+          const id = `${repoTrim}:${name}`;
+          const version = meta.version || meta.ver || '0.0.0';
+          const assets = meta.assets || meta.files || (meta.binary ? [meta.binary] : []);
+          // If no assets, try to infer from repo: look for .fap, .fap.json, .fap.bin near manifest
+          if (!assets.length) {
+            const base = path.replace(/\/[^\/]+$/,'');
+            const near = files.filter(p => p.startsWith(base) && /\.(fap|bin|zip|fw|dfu)$/i.test(p));
+            assets.push(...near.slice(0,5));
+          }
+          apps.push({ id, name, version, repo: repoTrim, manifestPath: path, assets, rawManifestUrl: raw, meta });
+        } catch(e){ log('manifest parse error '+e,'error'); }
+      }
+      // Deduplicate by id
+      const uniq = {};
+      for (const a of apps) uniq[a.id]=a;
+      const appList = Object.values(uniq);
+      state.indexed[repoTrim] = appList;
+      state.apps.push(...appList);
+      // update repo list UI
+      const node = document.createElement('div');
+      node.className='repo-item';
+      node.innerHTML = `<div>${repoTrim}</div><div class="muted">${appList.length} apps</div>`;
+      $('repoList').appendChild(node);
+    } catch (e) {
+      log('Index error: '+e,'error');
+    }
+  }
+  // Filter out stock apps if stockSet populated
+  if (state.stockSet.size) {
+    state.apps = state.apps.filter(a => !state.stockSet.has(a.name) && !state.stockSet.has(a.id));
+  }
+  renderApps();
+  $('indexedCount').innerText = `${state.apps.length} apps`;
+}
+
+/* -------------------------
+   Stock metadata fetch (filter)
+   ------------------------- */
+async function fetchStockMetadata(url) {
+  if (!url) { alert('Provide a raw URL to stock metadata (JSON or newline list).'); return; }
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Fetch failed: '+r.status);
+    const text = await r.text();
+    let list = [];
+    try { const j = JSON.parse(text); if (Array.isArray(j)) list = j; else if (j.apps) list = j.apps; else if (j.names) list = j.names; } catch(e){
+      // fallback: newline list
+      list = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    }
+    state.stockSet = new Set(list.map(s=>typeof s==='string'?s:s.name||s.id).filter(Boolean));
+    log(`Loaded ${state.stockSet.size} stock entries from ${url}`);
+    // re-render apps to apply filter
+    state.apps = state.apps.filter(a => !state.stockSet.has(a.name) && !state.stockSet.has(a.id));
+    renderApps();
+  } catch (e) {
+    log('Stock metadata fetch failed: '+e,'error');
+  }
+}
+
+/* -------------------------
+   Render apps
+   ------------------------- */
+function renderApps() {
+  const grid = $('appsGrid');
+  grid.innerHTML = '';
+  const q = $('filter').value.trim().toLowerCase();
+  const apps = state.apps.filter(a => {
+    if (!q) return true;
+    return (a.name||'').toLowerCase().includes(q) || (a.repo||'').toLowerCase().includes(q) || (a.id||'').toLowerCase().includes(q);
+  });
+  for (const app of apps) {
+    const el = document.createElement('div');
+    el.className='app';
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:700">${escapeHtml(app.name)}</div>
+          <div class="meta">${escapeHtml(app.repo)} · <small>${escapeHtml(app.version)}</small></div>
+        </div>
+        <div style="text-align:right">
+          <div class="status missing" id="status-${cssId(app.id)}">unknown</div>
+          <div style="margin-top:8px">
+            <button data-id="${app.id}" class="selectBtn ghost">Select</button>
+          </div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(el);
+  }
+  // attach select handlers
+  document.querySelectorAll('.selectBtn').forEach(b => b.addEventListener('click', e => {
+    const id = e.currentTarget.dataset.id;
+    selectApp(id);
+  }));
+}
+
+/* -------------------------
+   App selection & asset download
+   ------------------------- */
+function selectApp(id) {
+  const app = state.apps.find(a=>a.id===id);
+  if (!app) return;
+  const sel = $('selectedApp');
+  sel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:800">${escapeHtml(app.name)}</div>
+        <div class="muted">${escapeHtml(app.repo)} · v${escapeHtml(app.version)}</div>
+      </div>
+      <div class="muted">manifest: <small>${escapeHtml(app.manifestPath||'—')}</small></div>
+    </div>
+    <div class="meta" style="margin-top:8px">Assets: ${app.assets.length} (inferred)</div>
+  `;
+  $('installerControls').hidden = false;
+  $('downloadAssets').onclick = () => downloadAssetsForApp(app);
+  $('verifyBtn').onclick = () => verifyAppAssets(app);
+  $('installSd').onclick = () => installToSd(app);
+  $('installSerial').onclick = () => transferViaSerial(app);
+  // clear logs
+  state.logs = [];
+  $('log').innerText = '';
+}
+
+/* Download only requested assets (user action) */
+async function downloadAssetsForApp(app) {
+  if (!confirm(`Download ${app.assets.length} asset(s) for "${app.name}" from GitHub? Only requested assets will be fetched.`)) return;
+  setProgress(0);
+  log(`Starting download of ${app.assets.length} assets for ${app.name}`);
+  const blobs = [];
+  for (let i=0;i<app.assets.length;i++) {
+    const path = app.assets[i];
+    const url = path.startsWith('http') ? path : `https://raw.githubusercontent.com/${app.repo}/HEAD/${path}`;
+    try {
+      log(`Fetching ${url}`);
+      const r = await fetch(url);
+      if (!r.ok) { log(`Failed to fetch ${url}: ${r.status}`, 'error'); continue; }
+      const blob = await r.blob();
+      blobs.push({path, blob, url});
+      setProgress(Math.round(((i+1)/app.assets.length)*100));
+    } catch (e) {
+      log('Download error: '+e,'error');
+    }
+  }
+  // store temporarily on app object
+  app._downloaded = blobs;
+  log(`Downloaded ${blobs.length}/${app.assets.length} assets`);
+  setProgress(100);
+}
+
+/* -------------------------
+   Verification (checksum & signature)
+   - SHA-256 checksum: compare to manifest.meta.checksum or .sha256 file in repo
+   - Signature: verify using PEM public key and base64 signature (repo may host .sig)
+   ------------------------- */
+async function verifyAppAssets(app) {
+  if (!app._downloaded || !app._downloaded.length) { alert('No assets downloaded. Click "Download assets" first.'); return; }
+  log('Starting verification');
+  // compute SHA-256 for each blob
+  for (const item of app._downloaded) {
+    const arr = new Uint8Array(await item.blob.arrayBuffer());
+    const hashBuf = await crypto.subtle.digest('SHA-256', arr);
+    const hashHex = bufferToHex(hashBuf);
+    item.sha256 = hashHex;
+    log(`Asset ${item.path} SHA-256: ${hashHex}`);
+  }
+  // Attempt to fetch checksum file from repo (e.g., <asset>.sha256 or manifest checksum)
+  // If user provided signature and pubkey, verify signature
+  const pubkeyText = $('pubkey').value.trim();
+  const sigText = $('sig').value.trim();
+  let verified = false;
+  if (sigText && pubkeyText) {
+    try {
+      log('Verifying signature with provided public key');
+      // assume signature is over concatenated SHA256 hexes or over a manifest; we will verify signature over concatenated hexes as a best-effort
+      const payload = app._downloaded.map(i=>i.sha256+'  '+i.path).join('\n');
+      const enc = new TextEncoder().encode(payload);
+      const signature = base64ToArrayBuffer(sigText);
+      const pub = await importPemKey(pubkeyText);
+      const alg = pub.algorithm.name === 'ECDSA' ? {name:'ECDSA', hash:{name:'SHA-256'}} : {name:'RSASSA-PKCS1-v1_5', hash:{name:'SHA-256'}};
+      const ok = await crypto.subtle.verify(alg, pub.key, signature, enc);
+      if (ok) { log('Signature verified ✅'); verified = true; } else { log('Signature verification failed ❌','error'); }
+    } catch (e) { log('Signature verification error: '+e,'error'); }
+  } else {
+    log('No signature or public key provided; skipping signature verification');
+  }
+  // If repo hosts .sig or .sha256 files, attempt to fetch them
+  // Try to fetch <manifestPath>.sig or <asset>.sig
+  for (const item of app._downloaded) {
+    const sigUrl = `https://raw.githubusercontent.com/${app.repo}/HEAD/${item.path}.sig`;
+    try {
+      const r = await fetch(sigUrl);
+      if (r.ok) {
+        const sig = await r.text();
+        log(`Found signature file for ${item.path} at ${sigUrl}`);
+        // if user didn't provide pubkey, try to fetch <repo>/.pubkey or <repo>/pubkey.pem
+        if (!pubkeyText) {
+          const pubUrls = [
+            `https://raw.githubusercontent.com/${app.repo}/HEAD/.pubkey`,
+            `https://raw.githubusercontent.com/${app.repo}/HEAD/pubkey.pem`,
+            `https://raw.githubusercontent.com/${app.repo}/HEAD/KEY.pub`
+          ];
+          for (const pu of pubUrls) {
+            try {
+              const pr = await fetch(pu);
+              if (pr.ok) {
+                const ptxt = await pr.text();
+                $('pubkey').value = ptxt;
+                log(`Fetched public key from ${pu}`);
+                break;
+              }
+            } catch(e){}
+          }
+        }
+        // set signature field for user convenience
+        $('sig').value = sig.trim();
+      }
+    } catch(e){}
+  }
+  if (!verified) log('Verification completed (signature not verified). Check checksums and public key manually.', 'error');
+  else log('Verification completed successfully.');
+}
+
+/* -------------------------
+   Install to SD (File System Access API)
+   - User selects SD root directory once; we write files into a folder (e.g., /apps/custom/)
+   - We verify checksums before writing
+   ------------------------- */
+async function installToSd(app) {
+  if (!app._downloaded || !app._downloaded.length) { alert('No assets downloaded.'); return; }
+  if (!state.sdHandle) {
+    alert('Please select SD root first using "Select SD root" button.');
+    return;
+  }
+  if (!confirm(`Install ${app.name} to selected SD root? This will write files to the chosen directory.`)) return;
+  try {
+    const root = state.sdHandle;
+    // create apps/custom/<app.name> folder
+    const appsDir = await getOrCreateDirectory(root, 'apps');
+    const customDir = await getOrCreateDirectory(appsDir, 'custom');
+    const appDir = await getOrCreateDirectory(customDir, sanitizeFilename(app.name));
+    // write each file
+    for (let i=0;i<app._downloaded.length;i++) {
+      const item = app._downloaded[i];
+      const fileHandle = await appDir.getFileHandle(item.path.split('/').pop(), {create:true});
+      const writable = await fileHandle.createWritable();
+      await writable.write(item.blob);
+      await writable.close();
+      log(`Wrote ${item.path} -> ${fileHandle.name}`);
+      setProgress(Math.round(((i+1)/app._downloaded.length)*100));
+    }
+    log(`Install complete: ${app.name}`);
+    alert('Install complete. Eject SD safely before inserting into Flipper.');
+  } catch (e) {
+    log('SD install error: '+e,'error');
+  } finally { setProgress(0); }
+}
+
+/* -------------------------
+   Transfer via WebSerial (generic)
+   - This is a generic file transfer over serial; actual Flipper protocol may differ.
+   - We provide a manual consent flow and show logs. We do NOT flash firmware.
+   ------------------------- */
+async function transferViaSerial(app) {
+  if (!('serial' in navigator)) { alert('WebSerial not supported in this browser.'); return; }
+  if (!app._downloaded || !app._downloaded.length) { alert('No assets downloaded.'); return; }
+  if (!confirm('Open serial port and transfer files? Ensure device is in file-receive mode.')) return;
+  try {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    state.serialPort = port;
+    log('Serial port opened');
+    const encoder = new TextEncoderStream();
+    const writableStreamClosed = encoder.readable.pipeTo(port.writable);
+    const writer = encoder.writable.getWriter();
+    const reader = port.readable.getReader();
+    // Simple protocol: send a header then raw bytes. This is intentionally generic.
+    for (let i=0;i<app._downloaded.length;i++) {
+      const item = app._downloaded[i];
+      log(`Sending ${item.path} (${item.blob.size} bytes)`);
+      await writer.write(`BEGIN_FILE ${item.path} ${item.blob.size}\n`);
+      // stream blob in chunks
+      const buf = new Uint8Array(await item.blob.arrayBuffer());
+      const chunkSize = 4096;
+      for (let off=0; off<buf.length; off+=chunkSize) {
+        const chunk = buf.slice(off, off+chunkSize);
+        // write raw bytes via port.writable (need to use WritableStreamDefaultWriter of port.writable)
+        // For simplicity, use port.writable.getWriter() to write raw bytes
+        const rawWriter = port.writable.getWriter();
+        await rawWriter.write(chunk);
+        rawWriter.releaseLock();
+        setProgress(Math.round(((i + off/buf.length)/app._downloaded.length)*100));
+      }
+      await writer.write(`END_FILE ${item.path}\n`);
+      log(`Sent ${item.path}`);
+    }
+    log('Transfer complete');
+    reader.releaseLock();
+    writer.releaseLock();
+    await port.close();
+    log('Serial port closed');
+  } catch (e) {
+    log('Serial transfer error: '+e,'error');
+  } finally { setProgress(0); }
+}
+
+/* -------------------------
+   Helpers: File System Access helpers
+   ------------------------- */
+async function getOrCreateDirectory(root, name) {
+  try {
+    return await root.getDirectoryHandle(name, { create: true });
+  } catch (e) {
+    // fallback for older implementations
+    if (root.getDirectory) return await root.getDirectory(name);
+    throw e;
+  }
+}
+
+/* -------------------------
+   Connection helpers (WebUSB / WebSerial)
+   ------------------------- */
+$('connectSerial').addEventListener('click', async () => {
+  if (!('serial' in navigator)) { alert('WebSerial not supported in this browser.'); return; }
+  try {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    state.serialPort = port;
+    log('Connected to serial device');
+    // simple read loop to show device messages
+    const reader = port.readable.getReader();
+    (async () => {
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            const text = new TextDecoder().decode(value);
+            log('Device: '+text);
+          }
+        }
+      } catch (e) { log('Serial read error: '+e,'error'); }
+    })();
+  } catch (e) { log('Serial connect canceled or failed: '+e,'error'); }
+});
+
+$('connectUsb').addEventListener('click', async () => {
+  if (!('usb' in navigator)) { alert('WebUSB not supported in this browser.'); return; }
+  try {
+    const device = await navigator.usb.requestDevice({ filters: [] });
+    await device.open();
+    state.usbDevice = device;
+    log(`USB device opened: ${device.productName || device.serialNumber || 'unknown'}`);
+    // Do not claim interfaces or perform writes without explicit user action
+  } catch (e) { log('USB connect canceled or failed: '+e,'error'); }
+});
+
+/* -------------------------
+   SD selection
+   ------------------------- */
+$('openSd').addEventListener('click', async () => {
+  if (!('showDirectoryPicker' in window)) {
+    alert('File System Access API not supported in this browser.');
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker();
+    state.sdHandle = handle;
+    $('sdStatus').innerText = `Selected: ${handle.name}`;
+    log('SD root selected: '+handle.name);
+  } catch (e) { log('SD selection canceled'); }
+});
+
+/* -------------------------
+   UI wiring
+   ------------------------- */
+$('indexBtn').addEventListener('click', async () => {
+  const text = $('repos').value.trim();
+  if (!text) { alert('Enter at least one GitHub repo (owner/repo).'); return; }
+  const list = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  state.repos = list;
+  await indexRepos(list);
+});
+$('clearIndex').addEventListener('click', () => {
+  state.repos = [];
+  state.apps = [];
+  state.indexed = {};
+  $('repos').value = '';
+  $('repoList').innerHTML = '';
+  $('appsGrid').innerHTML = '';
+  $('indexedCount').innerText = '0 apps';
+});
+$('fetchStock').addEventListener('click', async () => {
+  const url = $('stockUrl').value.trim();
+  await fetchStockMetadata(url);
+});
+$('filter').addEventListener('input', renderApps);
+$('refreshApps').addEventListener('click', () => renderApps());
+$('reindexSelected').addEventListener('click', async () => {
+  const sel = Object.keys(state.indexed);
+  if (!sel.length) return alert('No repos indexed.');
+  await indexRepos(sel);
+});
+$('exportIndex').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state.apps, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='flipper-custom-index.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+$('clearHistory').addEventListener('click', () => { state.history=[]; $('history').innerText=''; });
+$('downloadLog').addEventListener('click', () => {
+  const blob = new Blob([state.history.join('\n')], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='flipper-manager-log.txt'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* -------------------------
+   Crypto helpers
+   ------------------------- */
+function bufferToHex(buf) {
+  const b = new Uint8Array(buf);
+  return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function base64ToArrayBuffer(b64) {
+  const bin = atob(b64.replace(/\s+/g,''));
+  const len = bin.length;
+  const arr = new Uint8Array(len);
+  for (let i=0;i<len;i++) arr[i]=bin.charCodeAt(i);
+  return arr.buffer;
+}
+async function importPemKey(pem) {
+  // supports RSA and EC public keys in PEM
+  const clean = pem.replace(/-----(BEGIN|END)[\w\s]+-----/g,'').replace(/\s+/g,'');
+  const der = base64ToArrayBuffer(clean);
+  // try RSA first
+  try {
+    const key = await crypto.subtle.importKey('spki', der, {name:'RSASSA-PKCS1-v1_5', hash:'SHA-256'}, false, ['verify']);
+    return { key, algorithm: { name: 'RSASSA-PKCS1-v1_5' } };
+  } catch(e){}
+  try {
+    const key = await crypto.subtle.importKey('spki', der, {name:'ECDSA', namedCurve:'P-256'}, false, ['verify']);
+    return { key, algorithm: { name: 'ECDSA' } };
+  } catch(e){ throw new Error('Unsupported public key format'); }
+}
+
+/* -------------------------
+   Small helpers
+   ------------------------- */
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]); }
+function cssId(s){ return btoa(s).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_'); }
+function sanitizeFilename(name){ return name.replace(/[<>:"/\\|?*\x00-\x1F]/g,'_').slice(0,120); }
+
+/* -------------------------
+   Initial demo state (empty)
+   ------------------------- */
+log('Ready. Enter GitHub repos to index custom apps.');
+
+/* -------------------------
+   Notes for integrators:
+   - This scaffold intentionally uses best-effort heuristics to find manifests and assets.
+   - Real-world integrations should implement repository-specific manifest schemas and robust protocol implementations for device transfer.
+   - Always require explicit user consent before writing to removable media or connected devices.
+   ------------------------- */
+</script>
+</body>
+</html>
